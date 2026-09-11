@@ -1,0 +1,113 @@
+.plu-what-service {
+  grid-template-columns: minmax(250px, .72fr) minmax(0, 1.28fr);
+  align-items: start;
+}
+
+.plu-what-journey > aside > img {
+  object-position: center 42%;
+}
+
+.plu-what-service > header {
+  position: sticky;
+  top: 112px;
+}
+
+.plu-what-service > div {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.plu-what-service article,
+.plu-what-service article.is-green {
+  min-height: 285px;
+  padding: 26px;
+  background: #fff;
+  border: 1px solid #dedede;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.plu-what-service article:nth-child(3n + 1) {
+  border-top: 4px solid #050505;
+}
+
+.plu-what-service article:nth-child(3n + 2) {
+  border-top: 4px solid #f5d500;
+}
+
+.plu-what-service article:nth-child(3n) {
+  border-top: 4px solid #df2029;
+}
+
+.plu-what-service article > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.plu-what-service article > header span {
+  width: 58px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #050505;
+  background: #f5d500;
+}
+
+.plu-what-service article > header svg {
+  width: 32px;
+  height: 32px;
+}
+
+.plu-what-service article > header b {
+  color: #d5d5d5;
+  font-size: 32px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.plu-what-service h3 {
+  margin-top: 24px;
+  color: #111;
+  font-size: 20px;
+  line-height: 1.25;
+  text-transform: none;
+}
+
+.plu-what-service article p {
+  margin-top: 13px;
+  color: #3e3e3e;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.plu-process-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1000px) {
+  .plu-what-service {
+    grid-template-columns: 1fr;
+  }
+
+  .plu-what-service > header {
+    position: static;
+  }
+
+  .plu-process-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .plu-what-service > div {
+    grid-template-columns: 1fr;
+  }
+
+  .plu-what-service article,
+  .plu-what-service article.is-green {
+    min-height: 0;
+    padding: 22px;
+  }
+}

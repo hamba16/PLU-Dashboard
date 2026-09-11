@@ -1,0 +1,692 @@
+﻿(function () {
+  const slider = document.querySelector('[data-plu-slider]');
+  if (!slider) return;
+
+  const slides = Array.from(slider.querySelectorAll('[data-plu-slide]'));
+  if (!slides.length) return;
+  const dots = Array.from(slider.querySelectorAll('[data-plu-dot]'));
+  const prev = slider.querySelector('[data-plu-prev]');
+  const next = slider.querySelector('[data-plu-next]');
+  const pause = slider.querySelector('[data-plu-pause]');
+  const current = slider.querySelector('.plu-slider__count span:first-child');
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let index = 0;
+  let timer;
+  let userPaused = reducedMotion;
+  let focusStopped = false;
+  let hoverStopped = false;
+
+  function show(nextIndex) {
+    index = (nextIndex + slides.length) % slides.length;
+    slides.forEach((slide, i) => {
+      slide.classList.toggle('is-active', i === index);
+      slide.setAttribute('aria-hidden', i === index ? 'false' : 'true');
+      slide.toggleAttribute('inert', i !== index);
+    });
+    dots.forEach((dot, i) => {
+      dot.classList.toggle('is-active', i === index);
+      dot.setAttribute('aria-current', i === index ? 'true' : 'false');
+    });
+    if (current) current.textContent = String(index + 1).padStart(2, '0');
+  }
+
+  function updatePauseButton() {
+    if (!pause) return;
+    const stopped = userPaused || focusStopped || hoverStopped || reducedMotion;
+    pause.setAttribute('aria-label', stopped ? 'Start slide rotation' : 'Pause slide rotation');
+    pause.setAttribute('title', stopped ? 'Start slide rotation' : 'Pause slide rotation');
+    pause.querySelector('span').textContent = stopped ? '▶' : '❚❚';
+  }
+
+  function stop() {
+    window.clearInterval(timer);
+    timer = undefined;
+    updatePauseButton();
+  }
+
+  function start() {
+    stop();
+    if (slides.length > 1 && !userPaused && !focusStopped && !hoverStopped && !reducedMotion) timer = window.setInterval(() => show(index + 1), 6500);
+    updatePauseButton();
+  }
+
+  prev && prev.addEventListener('click', function () { show(index - 1); start(); });
+  next && next.addEventListener('click', function () { show(index + 1); start(); });
+  dots.forEach((dot, i) => dot.addEventListener('click', function () { show(i); start(); }));
+  pause && pause.addEventListener('click', function () {
+    if (userPaused || focusStopped) {
+      userPaused = false;
+      focusStopped = false;
+      start();
+    } else {
+      userPaused = true;
+      stop();
+    }
+  });
+  slider.addEventListener('mouseenter', function () { hoverStopped = true; stop(); });
+  slider.addEventListener('mouseleave', function () { hoverStopped = false; start(); });
+  slider.addEventListener('focusin', function () { focusStopped = true; stop(); });
+  document.addEventListener('visibilitychange', function () { if (document.hidden) stop(); else start(); });
+
+  show(0);
+  start();
+})();
+
+(function () {
+  const carousel = document.querySelector('[data-plu-news-carousel]');
+  if (!carousel) return;
+
+  const panels = Array.from(carousel.querySelectorAll('[data-plu-news-panel]'));
+  const selectors = Array.from(carousel.querySelectorAll('[data-plu-news-select]'));
+  let index = 0;
+
+  function show(nextIndex) {
+    index = (nextIndex + panels.length) % panels.length;
+    panels.forEach((panel, i) => {
+      const active = i === index;
+      panel.classList.toggle('is-active', active);
+      panel.setAttribute('aria-hidden', active ? 'false' : 'true');
+      panel.toggleAttribute('inert', !active);
+    });
+    selectors.forEach((selector, i) => {
+      const active = i === index;
+      selector.classList.toggle('is-active', active);
+      selector.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+  }
+
+  carousel.addEventListener('click', function (event) {
+    const previous = event.target.closest('[data-plu-news-prev]');
+    const next = event.target.closest('[data-plu-news-next]');
+    const selector = event.target.closest('[data-plu-news-select]');
+    if (previous) show(index - 1);
+    else if (next) show(index + 1);
+    else if (selector) show(Number.parseInt(selector.dataset.pluNewsSelect || '0', 10));
+    else return;
+  });
+
+  show(0);
+})();
+
+(function () {
+  const counters = Array.from(document.querySelectorAll('[data-home-member-count]'));
+  if (!counters.length) return;
+
+  counters.forEach((counter) => {
+    const target = Number.parseInt(counter.getAttribute('data-home-member-count') || '0', 10) || 0;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      counter.textContent = target.toLocaleString('en-US');
+      return;
+    }
+
+    const started = performance.now();
+    const duration = 1100;
+    counter.textContent = '0';
+
+    function tick(now) {
+      const progress = Math.min((now - started) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      counter.textContent = Math.round(target * eased).toLocaleString('en-US');
+      if (progress < 1) window.requestAnimationFrame(tick);
+    }
+
+    window.requestAnimationFrame(tick);
+  });
+})();
+
+(function () {
+  const contact = document.querySelector('[data-contact-case-ref]');
+  if (!contact) return;
+  const reference = contact.dataset.contactCaseRef || '';
+  const subject = contact.querySelector('[name="your-subject"]');
+  const message = contact.querySelector('[name="your-message"]');
+  if (subject && !subject.value) subject.value = 'Right of reply / correction - ' + reference;
+  if (message && !message.value) message.value = 'Tracker reference: ' + reference + '\n\nDetail being challenged or corrected:\n\nSupporting source or record:\n';
+})();
+
+document.querySelector('[data-print-case]')?.addEventListener('click', function () { window.print(); });
+
+(() => {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const revealItems = Array.from(document.querySelectorAll('[data-plu-reveal]'));
+
+  if (!reduceMotion && 'IntersectionObserver' in window) {
+    revealItems.forEach((item) => item.classList.add('is-reveal-pending'));
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('is-revealed');
+        entry.target.classList.remove('is-reveal-pending');
+        observer.unobserve(entry.target);
+      });
+    }, { threshold: 0.22 });
+    revealItems.forEach((item) => observer.observe(item));
+  }
+
+  const spotlight = document.querySelector('[data-plu-home-endorsements]');
+  if (!spotlight) return;
+  const slides = Array.from(spotlight.querySelectorAll('[data-home-endorsement]'));
+  const currentLabel = spotlight.querySelector('[data-home-endorsement-current]');
+  const progress = spotlight.querySelector('.plu-endorsement-snapshot__progress i');
+  let current = 0;
+  let timer;
+
+  const restartProgress = () => {
+    if (!progress || reduceMotion || slides.length < 2) return;
+    progress.classList.remove('is-running');
+    void progress.offsetWidth;
+    progress.classList.add('is-running');
+  };
+  const showSlide = (nextIndex) => {
+    current = (nextIndex + slides.length) % slides.length;
+    slides.forEach((slide, slideIndex) => {
+      const active = slideIndex === current;
+      slide.classList.toggle('is-active', active);
+      slide.setAttribute('aria-hidden', active ? 'false' : 'true');
+    });
+    if (currentLabel) currentLabel.textContent = String(current + 1).padStart(2, '0');
+    restartProgress();
+  };
+  const stop = () => window.clearInterval(timer);
+  const start = () => {
+    stop();
+    if (!reduceMotion && slides.length > 1) timer = window.setInterval(() => showSlide(current + 1), 6000);
+  };
+
+  spotlight.querySelector('[data-home-endorsement-prev]')?.addEventListener('click', () => { showSlide(current - 1); start(); });
+  spotlight.querySelector('[data-home-endorsement-next]')?.addEventListener('click', () => { showSlide(current + 1); start(); });
+  spotlight.addEventListener('mouseenter', stop);
+  spotlight.addEventListener('mouseleave', start);
+  spotlight.addEventListener('focusin', stop);
+  spotlight.addEventListener('focusout', start);
+  showSlide(0);
+  start();
+})();
+
+(function () {
+  const tabs = document.querySelector('[data-plu-origin-tabs]');
+  if (!tabs) return;
+  const input = document.querySelector('[data-origin-input]');
+  const uganda = document.querySelector('.plu-uganda-fields');
+  const diaspora = document.querySelector('.plu-diaspora-fields');
+  tabs.querySelectorAll('button').forEach((button) => {
+    button.addEventListener('click', () => {
+      const origin = button.getAttribute('data-origin');
+      tabs.querySelectorAll('button').forEach((item) => item.classList.toggle('is-active', item === button));
+      if (input) input.value = origin;
+      if (uganda) uganda.hidden = origin !== 'uganda';
+      if (diaspora) diaspora.hidden = origin !== 'diaspora';
+    });
+  });
+})();
+
+(function () {
+  const root = document.querySelector('[data-plu-structure]');
+  if (!root) return;
+
+  function animateCount(element, rawValue) {
+    if (!element) return;
+    const target = Number.parseInt(String(rawValue).replace(/[^0-9]/g, ''), 10) || 0;
+    const usesComma = String(rawValue).includes(',');
+    const started = performance.now();
+    const duration = 1100;
+
+    function tick(now) {
+      const progress = Math.min((now - started) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const value = Math.round(target * eased);
+      element.textContent = usesComma ? value.toLocaleString('en-US') : String(value);
+      if (progress < 1) window.requestAnimationFrame(tick);
+    }
+
+    window.requestAnimationFrame(tick);
+  }
+
+  const counters = Array.from(root.querySelectorAll('[data-count-up]'));
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting || entry.target.dataset.counted === 'yes') return;
+        entry.target.dataset.counted = 'yes';
+        animateCount(entry.target, entry.target.getAttribute('data-count-up'));
+        observer.unobserve(entry.target);
+      });
+    }, { threshold: 0.25 });
+    counters.forEach((counter) => observer.observe(counter));
+  } else {
+    counters.forEach((counter) => animateCount(counter, counter.getAttribute('data-count-up')));
+  }
+
+  const selectors = Array.from(root.querySelectorAll('[data-structure-select]'));
+  const detailIcon = root.querySelector('[data-detail-icon]');
+  const detailCount = root.querySelector('[data-detail-count]');
+  const detailLabel = root.querySelector('[data-detail-label]');
+  const detailPurpose = root.querySelector('[data-detail-purpose]');
+  const detailServes = root.querySelector('[data-detail-serves]');
+  const detailWork = root.querySelector('[data-detail-work]');
+
+  function selectLevel(id) {
+    const source = root.querySelector('.plu-level-button[data-structure-select="' + id + '"]');
+    if (!source) return;
+    selectors.forEach((button) => button.classList.toggle('is-active', button.getAttribute('data-structure-select') === id));
+    const sourceIcon = source.querySelector('svg');
+    if (detailIcon && sourceIcon) detailIcon.innerHTML = sourceIcon.outerHTML;
+    if (detailLabel) detailLabel.textContent = source.dataset.label || '';
+    if (detailPurpose) detailPurpose.textContent = source.dataset.purpose || '';
+    if (detailServes) detailServes.textContent = source.dataset.serves || '';
+    if (detailWork) detailWork.textContent = source.dataset.work || '';
+    if (detailCount) {
+      detailCount.setAttribute('data-count-up', source.dataset.count || '0');
+      animateCount(detailCount, source.dataset.count || '0');
+    }
+  }
+
+  selectors.forEach((button) => button.addEventListener('click', () => {
+    selectLevel(button.getAttribute('data-structure-select'));
+    const isMobile = window.matchMedia('(max-width: 760px)').matches;
+    if (isMobile || button.classList.contains('plu-orbit-button') || button.classList.contains('plu-structure-jump')) {
+      window.requestAnimationFrame(() => {
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const detail = root.querySelector('.plu-structure-detail');
+        if (detail) {
+          detail.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+          detail.setAttribute('tabindex', '-1');
+          detail.focus({ preventScroll: true });
+        }
+      });
+    }
+  }));
+})();
+
+(function () {
+  const button = document.querySelector('.plu-menu-button');
+  const navigation = document.querySelector('.plu-nav');
+  if (!button || !navigation) return;
+  navigation.querySelectorAll('.menu-item-has-children').forEach(function (item, index) {
+    const submenu = item.querySelector(':scope > .sub-menu');
+    const link = item.querySelector(':scope > a');
+    if (!submenu || !link) return;
+    const submenuId = submenu.id || 'plu-mobile-submenu-' + index;
+    submenu.id = submenuId;
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'plu-submenu-toggle';
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-controls', submenuId);
+    toggle.setAttribute('aria-label', 'Show ' + link.textContent.trim() + ' submenu');
+    toggle.innerHTML = '<span aria-hidden="true"></span>';
+    link.insertAdjacentElement('afterend', toggle);
+    toggle.addEventListener('click', function () {
+      const open = item.classList.toggle('is-submenu-open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      toggle.setAttribute('aria-label', (open ? 'Hide ' : 'Show ') + link.textContent.trim() + ' submenu');
+    });
+  });
+  button.setAttribute('aria-expanded', 'false');
+  button.addEventListener('click', function () {
+    const open = navigation.classList.toggle('is-open');
+    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    button.setAttribute('aria-label', open ? 'Close navigation menu' : 'Open navigation menu');
+  });
+  navigation.addEventListener('click', function (event) {
+    if (event.target.closest('a') && window.matchMedia('(max-width: 1060px)').matches) {
+      navigation.classList.remove('is-open');
+      navigation.querySelectorAll('.is-submenu-open').forEach((item) => item.classList.remove('is-submenu-open'));
+      button.setAttribute('aria-expanded', 'false');
+      button.setAttribute('aria-label', 'Open navigation menu');
+    }
+  });
+  document.addEventListener('click', function (event) {
+    if (!navigation.classList.contains('is-open') || event.target.closest('.plu-header')) return;
+    navigation.classList.remove('is-open');
+    button.setAttribute('aria-expanded', 'false');
+  });
+  window.addEventListener('resize', function () {
+    if (window.innerWidth <= 1060) return;
+    navigation.classList.remove('is-open');
+    navigation.querySelectorAll('.is-submenu-open').forEach((item) => item.classList.remove('is-submenu-open'));
+    button.setAttribute('aria-expanded', 'false');
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+      navigation.classList.remove('is-open');
+      button.setAttribute('aria-expanded', 'false');
+      button.setAttribute('aria-label', 'Open navigation menu');
+      button.focus();
+    }
+  });
+})();
+
+(function () {
+  const root = document.querySelector('[data-plu-newsroom]');
+  if (!root) return;
+
+  const cards = Array.from(root.querySelectorAll('[data-news-card]'));
+  const categoryButtons = Array.from(root.querySelectorAll('[data-news-category]'));
+  const search = root.querySelector('[data-news-search]');
+  const count = root.querySelector('[data-news-count]');
+  const empty = root.querySelector('[data-news-empty]');
+  const pagination = root.querySelector('[data-news-pagination]');
+  const previous = root.querySelector('[data-news-prev]');
+  const next = root.querySelector('[data-news-next]');
+  const pageLabel = root.querySelector('[data-news-page]');
+  const pageSize = Math.max(1, Number.parseInt(root.dataset.pageSize || '9', 10));
+  let category = 'all';
+  let query = '';
+  let page = 1;
+
+  function render() {
+    const matches = cards.filter((card) => {
+      const categories = (card.dataset.category || '').split(' ');
+      const searchable = card.dataset.search || '';
+      return (category === 'all' || categories.includes(category)) && (!query || searchable.includes(query));
+    });
+    const totalPages = Math.max(1, Math.ceil(matches.length / pageSize));
+    page = Math.min(page, totalPages);
+    const first = (page - 1) * pageSize;
+    cards.forEach((card) => { card.hidden = true; });
+    matches.slice(first, first + pageSize).forEach((card) => { card.hidden = false; });
+    if (count) count.textContent = matches.length + (matches.length === 1 ? ' story' : ' stories');
+    if (empty) empty.hidden = matches.length !== 0;
+    if (pagination) pagination.hidden = totalPages <= 1;
+    if (pageLabel) pageLabel.textContent = 'Page ' + page + ' of ' + totalPages;
+    if (previous) previous.disabled = page === 1;
+    if (next) next.disabled = page === totalPages;
+  }
+
+  categoryButtons.forEach((button) => button.addEventListener('click', function () {
+    category = button.dataset.newsCategory || 'all';
+    page = 1;
+    categoryButtons.forEach((item) => item.classList.toggle('is-active', item === button));
+    render();
+  }));
+  if (search) search.addEventListener('input', function () { query = search.value.trim().toLowerCase(); page = 1; render(); });
+  if (previous) previous.addEventListener('click', function () { page = Math.max(1, page - 1); render(); root.querySelector('.plu-news-archive').scrollIntoView({ behavior: 'smooth' }); });
+  if (next) next.addEventListener('click', function () { page += 1; render(); root.querySelector('.plu-news-archive').scrollIntoView({ behavior: 'smooth' }); });
+  render();
+})();
+
+(function () {
+  const root = document.querySelector('[data-plu-tracker]');
+  if (!root) return;
+  const cases = Array.from(root.querySelectorAll('[data-tracker-case]'));
+  const filters = Array.from(root.querySelectorAll('[data-tracker-filter]'));
+  const search = root.querySelector('[data-tracker-search]');
+  const empty = root.querySelector('[data-tracker-empty]');
+  const dialog = root.querySelector('[data-report-dialog]');
+  const form = root.querySelector('[data-report-form]');
+  const anonymous = root.querySelector('[data-report-anonymous]');
+  const contact = root.querySelector('[data-report-contact]');
+  const fileInput = root.querySelector('[data-report-files]');
+  const fileList = root.querySelector('[data-report-file-list]');
+  const errorBox = root.querySelector('[data-report-error]');
+  const success = root.querySelector('[data-report-success]');
+  const stageSelect = root.querySelector('[data-tracker-stage-select]');
+  const locationSelect = root.querySelector('[data-tracker-location]');
+  const sortSelect = root.querySelector('[data-tracker-sort]');
+  const pagination = root.querySelector('[data-tracker-pagination]');
+  const countLabel = root.querySelector('[data-tracker-count-label]');
+  let stage = 'all';
+  let location = 'all';
+  let sort = 'latest';
+  let page = 1;
+  const perPage = 6;
+
+  function setCaseOpen(item, open) {
+    if (!item) return;
+    const details = item.querySelector('.plu-case-details');
+    const toggle = item.querySelector('[data-case-toggle]');
+    if (details) details.hidden = !open;
+    if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    item.classList.toggle('is-open', open);
+  }
+
+  function matchesStage(item) {
+    if (stage === 'all') return true;
+    return stage.split(',').includes(item.dataset.status || '');
+  }
+
+  function renderCases() {
+    const query = (search?.value || '').trim().toLowerCase();
+    const filtered = cases.filter((item) => matchesStage(item)
+      && (location === 'all' || item.dataset.location === location)
+      && (!query || (item.dataset.search || '').includes(query)));
+
+    filtered.sort((a, b) => {
+      if (sort === 'amount') return Number(b.dataset.amount || 0) - Number(a.dataset.amount || 0);
+      if (sort === 'title') return (a.dataset.title || '').localeCompare(b.dataset.title || '');
+      return Number(b.dataset.date || 0) - Number(a.dataset.date || 0);
+    });
+    const caseList = root.querySelector('.plu-tracker-cases');
+    filtered.forEach((item) => caseList?.appendChild(item));
+    const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+    page = Math.min(page, totalPages);
+    const pageItems = filtered.slice((page - 1) * perPage, page * perPage);
+    cases.forEach((item) => { item.hidden = !pageItems.includes(item); });
+
+    if (pageItems.length && !pageItems.some((item) => item.classList.contains('is-open'))) {
+      cases.forEach((item) => setCaseOpen(item, false));
+      setCaseOpen(pageItems[0], true);
+    }
+    if (empty) empty.hidden = filtered.length !== 0;
+    if (countLabel) countLabel.textContent = filtered.length + (filtered.length === 1 ? ' published matter' : ' published matters');
+    if (pagination) {
+      pagination.innerHTML = '';
+      if (totalPages > 1) {
+        const addButton = (label, targetPage, active, disabled, ariaLabel) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = label;
+          button.classList.toggle('is-active', active);
+          button.disabled = disabled;
+          if (active) button.setAttribute('aria-current', 'page');
+          if (ariaLabel) button.setAttribute('aria-label', ariaLabel);
+          button.addEventListener('click', function () { page = targetPage; renderCases(); });
+          pagination.appendChild(button);
+        };
+        addButton('Prev', Math.max(1, page - 1), false, page === 1, 'Previous cases');
+        for (let i = 1; i <= totalPages; i += 1) addButton(String(i), i, i === page, false, 'Page ' + i);
+        addButton('Next', Math.min(totalPages, page + 1), false, page === totalPages, 'Next cases');
+      }
+    }
+  }
+
+  filters.forEach((button) => button.addEventListener('click', function () {
+    stage = button.dataset.trackerFilter || 'all';
+    page = 1;
+    filters.forEach((item) => {
+      const active = (item.dataset.trackerFilter || 'all') === stage;
+      item.classList.toggle('is-active', active);
+      item.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    if (stageSelect) {
+      const hasMatchingOption = Array.from(stageSelect.options).some((option) => option.value === stage);
+      stageSelect.value = hasMatchingOption ? stage : 'all';
+    }
+    renderCases();
+    const register = root.querySelector('#cases');
+    if (register && button.closest('.plu-tracker-stages')) {
+      register.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+      window.setTimeout(function () { register.focus({ preventScroll: true }); }, reducedMotion ? 0 : 450);
+    }
+  }));
+  search?.addEventListener('input', function () { page = 1; renderCases(); });
+  stageSelect?.addEventListener('change', function () {
+    stage = stageSelect.value || 'all';
+    page = 1;
+    filters.forEach((item) => {
+      const active = (item.dataset.trackerFilter || 'all') === stage;
+      item.classList.toggle('is-active', active);
+      item.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    renderCases();
+  });
+  locationSelect?.addEventListener('change', function () { location = locationSelect.value || 'all'; page = 1; renderCases(); });
+  sortSelect?.addEventListener('change', function () { sort = sortSelect.value || 'latest'; page = 1; renderCases(); });
+  cases.forEach((item) => item.querySelector('[data-case-toggle]')?.addEventListener('click', function () {
+    const open = item.querySelector('.plu-case-details')?.hidden !== false;
+    setCaseOpen(item, open);
+  }));
+
+  const initiallyOpen = cases.find((item) => item.classList.contains('is-open')) || cases[0];
+  if (initiallyOpen) setCaseOpen(initiallyOpen, true);
+
+  root.querySelectorAll('[data-tracker-open-case]').forEach((button) => button.addEventListener('click', function () {
+    const target = cases.find((item) => item.dataset.caseId === button.dataset.trackerOpenCase);
+    if (!target) return;
+    stage = 'all'; location = 'all'; sort = 'latest'; page = 1;
+    if (search) search.value = '';
+    if (stageSelect) stageSelect.value = 'all';
+    if (locationSelect) locationSelect.value = 'all';
+    if (sortSelect) sortSelect.value = 'latest';
+    filters.forEach((item) => item.classList.toggle('is-active', (item.dataset.trackerFilter || '') === 'all'));
+    const ordered = cases.slice().sort((a, b) => Number(b.dataset.date || 0) - Number(a.dataset.date || 0));
+    page = Math.floor(ordered.indexOf(target) / perPage) + 1;
+    cases.forEach((item) => setCaseOpen(item, item === target));
+    renderCases();
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }));
+
+  root.querySelectorAll('[data-tracker-location-filter]').forEach((button) => button.addEventListener('click', function () {
+    location = button.dataset.trackerLocationFilter || 'all';
+    stage = 'all'; page = 1;
+    if (locationSelect) locationSelect.value = location;
+    if (stageSelect) stageSelect.value = 'all';
+    filters.forEach((item) => item.classList.toggle('is-active', (item.dataset.trackerFilter || '') === 'all'));
+    renderCases();
+    root.querySelector('#cases')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  root.querySelectorAll('[data-tracker-count]').forEach((counter) => {
+    const target = Number(counter.dataset.trackerCount || 0);
+    if (reducedMotion || target < 2) { counter.textContent = target.toLocaleString(); return; }
+    const started = performance.now();
+    const tick = (now) => {
+      const progress = Math.min(1, (now - started) / 850);
+      counter.textContent = Math.round(target * (1 - Math.pow(1 - progress, 3))).toLocaleString();
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+
+  function openDialog() {
+    if (!dialog) return;
+    dialog.hidden = false;
+    document.body.classList.add('plu-modal-open');
+    dialog.querySelector('[data-report-close]')?.focus();
+  }
+  function closeDialog() {
+    if (!dialog) return;
+    dialog.hidden = true;
+    document.body.classList.remove('plu-modal-open');
+  }
+  root.querySelectorAll('[data-report-open]').forEach((button) => button.addEventListener('click', openDialog));
+  root.querySelectorAll('[data-report-close]').forEach((button) => button.addEventListener('click', closeDialog));
+  const reportParams = new URLSearchParams(window.location.search);
+  if (reportParams.get('report') === '1') {
+    openDialog();
+    reportParams.delete('report');
+    const cleanQuery = reportParams.toString();
+    window.history.replaceState({}, '', window.location.pathname + (cleanQuery ? '?' + cleanQuery : '') + window.location.hash);
+  }
+  dialog?.addEventListener('click', function (event) { if (event.target === dialog) closeDialog(); });
+  document.addEventListener('keydown', function (event) { if (event.key === 'Escape' && dialog && !dialog.hidden) closeDialog(); });
+  anonymous?.addEventListener('change', function () { if (contact) contact.hidden = anonymous.checked; });
+  fileInput?.addEventListener('change', function () {
+    const files = Array.from(fileInput.files || []).slice(0, 5);
+    if (fileList) fileList.innerHTML = files.map((file) => '<span>' + file.name.replace(/[<>&]/g, '') + '</span>').join('');
+  });
+  form?.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    const submit = form.querySelector('.plu-report-submit');
+    const label = submit?.querySelector('span');
+    if (errorBox) errorBox.hidden = true;
+    if (submit) submit.disabled = true;
+    if (label) label.textContent = 'Securing report...';
+    const data = new FormData(form);
+    data.set('action', 'plu_submit_report');
+    data.set('nonce', root.dataset.reportNonce || '');
+    data.set('anonymous', anonymous?.checked ? 'true' : 'false');
+    try {
+      const response = await fetch(root.dataset.reportUrl, { method: 'POST', body: data, credentials: 'same-origin' });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.data?.message || 'The report could not be submitted.');
+      form.hidden = true;
+      if (success) {
+        success.hidden = false;
+        success.innerHTML = '<h3>Report received</h3><p>Keep this confidential reference for follow-up:</p><strong>' + result.data.trackingCode + '</strong><button type="button" data-report-close-success>Close</button>';
+        success.querySelector('button')?.addEventListener('click', closeDialog);
+      }
+      form.reset();
+      if (fileList) fileList.innerHTML = '';
+    } catch (error) {
+      if (errorBox) { errorBox.textContent = error.message || 'Submission failed'; errorBox.hidden = false; }
+    } finally {
+      if (submit) submit.disabled = false;
+      if (label) label.textContent = 'Submit confidential report';
+    }
+  });
+  renderCases();
+})();
+
+(function () {
+  const root = document.querySelector('[data-plu-corruption-float]');
+  if (!root) return;
+
+  const dismiss = root.querySelector('[data-plu-corruption-dismiss]');
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const sessionKey = 'plu-corruption-shortcut-dismissed';
+  let dismissed = false;
+  let suppressed = false;
+  let collapseTimer = 0;
+  try { dismissed = window.sessionStorage.getItem(sessionKey) === '1'; } catch (error) {}
+  if (dismissed) return;
+
+  root.hidden = false;
+
+  function scheduleCollapse() {
+    window.clearTimeout(collapseTimer);
+    if (window.innerWidth <= 700 || reducedMotion) return;
+    collapseTimer = window.setTimeout(function () { root.classList.add('is-collapsed'); }, 6500);
+  }
+
+  function update() {
+    const threshold = Math.max(280, window.innerHeight * 0.38);
+    const visible = !dismissed && !suppressed && window.scrollY > threshold && !document.body.classList.contains('plu-modal-open');
+    const wasVisible = root.classList.contains('is-visible');
+    root.classList.toggle('is-visible', visible);
+    root.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    if (visible && !wasVisible) scheduleCollapse();
+  }
+
+  const blockers = Array.from(document.querySelectorAll('footer, main form'));
+  if ('IntersectionObserver' in window && blockers.length) {
+    const visibleBlockers = new Set();
+    const observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) visibleBlockers.add(entry.target);
+        else visibleBlockers.delete(entry.target);
+      });
+      suppressed = visibleBlockers.size > 0;
+      root.classList.toggle('is-suppressed', suppressed);
+      update();
+    }, { threshold: 0.08 });
+    blockers.forEach(function (blocker) { observer.observe(blocker); });
+  }
+
+  dismiss?.addEventListener('click', function () {
+    dismissed = true;
+    root.classList.remove('is-visible');
+    root.setAttribute('aria-hidden', 'true');
+    try { window.sessionStorage.setItem(sessionKey, '1'); } catch (error) {}
+  });
+  root.addEventListener('mouseenter', function () { root.classList.remove('is-collapsed'); window.clearTimeout(collapseTimer); });
+  root.addEventListener('mouseleave', scheduleCollapse);
+  root.addEventListener('focusin', function () { root.classList.remove('is-collapsed'); window.clearTimeout(collapseTimer); });
+  root.addEventListener('focusout', scheduleCollapse);
+  window.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  new MutationObserver(update).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  update();
+})();

@@ -1,0 +1,74 @@
+(() => {
+  'use strict';
+
+  const storageKey = (item) => `plu-announcement-${item.dataset.announcementKey || item.dataset.announcementId}`;
+
+  const dismiss = (item) => {
+    if (!item) return;
+    try {
+      window.localStorage.setItem(storageKey(item), 'dismissed');
+    } catch (error) {
+      // Dismiss for this view even when storage is unavailable.
+    }
+    item.hidden = true;
+    document.body.classList.remove('plu-announcement-modal-open');
+  };
+
+  document.querySelectorAll('[data-plu-announcement]').forEach((item) => {
+    let wasSeen = false;
+    if (item.dataset.dismissible === '1') {
+      try {
+        wasSeen = Boolean(window.localStorage.getItem(storageKey(item)));
+      } catch (error) {
+        // Storage can be unavailable in private browsing.
+      }
+    }
+    if (wasSeen) {
+      item.hidden = true;
+      return;
+    }
+    item.hidden = false;
+    if (item.dataset.dismissible === '1') {
+      try {
+        window.localStorage.setItem(storageKey(item), 'seen');
+      } catch (error) {
+        // The announcement remains usable when storage is unavailable.
+      }
+    }
+    if (item.classList.contains('plu-announcement-panel')) {
+      document.body.classList.add('plu-announcement-modal-open');
+      window.setTimeout(() => item.querySelector('[data-announcement-dismiss]')?.focus(), 120);
+    }
+  });
+
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-announcement-dismiss]');
+    if (button) {
+      dismiss(button.closest('[data-plu-announcement]'));
+      return;
+    }
+    const popup = event.target.closest('.plu-announcement-panel');
+    if (popup && event.target === popup) dismiss(popup);
+  });
+
+  document.addEventListener('keydown', (event) => {
+    const popup = document.querySelector('.plu-announcement-panel:not([hidden])');
+    if (!popup) return;
+    if (event.key === 'Escape') {
+      dismiss(popup);
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = [...popup.querySelectorAll('a[href], button:not([disabled])')];
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+})();
