@@ -136,14 +136,14 @@
   letter-spacing: 1.4px;
   font-weight: 600;
 }
-.login-preview {
+.login-access {
   display: flex;
   align-items: center;
   gap: 7px;
   font-size: 8px;
   letter-spacing: 1px;
 }
-.login-preview i {
+.login-access i {
   height: 5px;
   width: 5px;
   border-radius: 50%;
@@ -396,7 +396,7 @@
   .login-statement h2 {
     font-size: 38px;
   }
-  .login-preview {
+  .login-access {
     font-size: 7px;
     letter-spacing: 0.5px;
   }
@@ -459,7 +459,7 @@
     font-size: 8px;
     letter-spacing: 0.8px;
   }
-  .login-preview {
+  .login-access {
     font-size: 7px;
   }
   .login-form-wrap {

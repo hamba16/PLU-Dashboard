@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
-import { PreviewProvider } from "@/src/Dashboard";
 import "@/src/styles.css";
 import "@/src/login.css";
 
@@ -24,9 +23,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={geist.variable}>
-      <body>
-        <PreviewProvider>{children}</PreviewProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

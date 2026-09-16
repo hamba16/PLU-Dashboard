@@ -10,6 +10,38 @@
   --plu-line: #dddcd2;
   --plu-text: #0d0d0d;
 }
+.admin-panel {
+  padding: 24px;
+  margin-bottom: 24px;
+}
+.admin-panel h2 {
+  margin-bottom: 24px;
+}
+.admin-panel .button-row {
+  margin: 24px 0 16px;
+}
+.admin-panel td small {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-top: 5px;
+}
+.audit-detail {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-width: 180px;
+  max-width: 440px;
+  font-size: 12px;
+}
+.staff-profile small {
+  display: block;
+}
+.staff-profile strong {
+  overflow-wrap: anywhere;
+}
+.badge.needs_correction {
+  background: #fff0c2;
+  color: #735000;
+}
 * {
   box-sizing: border-box;
 }
@@ -168,15 +200,6 @@ svg {
   margin-top: auto;
   padding-top: 35px;
 }
-.demo-card {
-  padding: 14px 12px;
-  border: 1px dashed #cfcec0;
-  border-radius: 5px;
-  font-size: 9px;
-  font-weight: 650;
-  letter-spacing: 1px;
-}
-.demo-dot,
 .tiny-dot {
   display: inline-block;
   width: 6px;
@@ -184,13 +207,6 @@ svg {
   border-radius: 50%;
   background: #9b8700;
   margin-right: 5px;
-}
-.demo-card p {
-  font-size: 11px;
-  font-weight: 400;
-  letter-spacing: 0;
-  color: #77776c;
-  margin: 7px 0 0;
 }
 .staff-profile {
   display: flex;
@@ -247,9 +263,6 @@ svg {
 .topbar-right {
   font-size: 10px;
   letter-spacing: 0.3px;
-}
-.topbar-right .demo-dot {
-  margin-right: -5px;
 }
 .topbar-divider {
   height: 14px;
@@ -1097,29 +1110,6 @@ footer {
 .status-form > .button {
   width: 100%;
 }
-.demo-hint {
-  border-top: 1px solid var(--plu-line);
-  margin-top: 24px;
-  padding-top: 18px;
-  font-size: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.demo-hint strong {
-  font-weight: 500;
-  color: #797967;
-}
-.demo-hint button {
-  border: 0;
-  background: none;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10px;
-  text-decoration: underline;
-}
 .status-result {
   text-align: left;
   padding: 26px;
@@ -1394,9 +1384,32 @@ footer {
     font-size: 24px;
   }
   .sidebar > .workspace-label,
-  .sidebar-public,
-  .sidebar-bottom {
+  .sidebar-public {
     display: none;
+  }
+  .sidebar-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0 14px;
+  }
+  .sidebar-bottom .staff-profile {
+    min-width: 0;
+    margin: 0;
+  }
+  .sidebar-bottom .staff-profile .avatar {
+    display: none;
+  }
+  .sidebar-bottom .staff-profile strong {
+    font-size: 11px;
+  }
+  .sidebar-bottom .staff-profile small {
+    font-size: 9px;
+  }
+  .sidebar-bottom > .button {
+    flex-shrink: 0;
+    padding: 9px 12px;
   }
   .sidebar nav {
     display: flex;

@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
   ArrowRight,
@@ -18,7 +18,6 @@ import {
   LayoutDashboard,
   MapPin,
   ClipboardList,
-  ExternalLink,
   Search,
   ChevronDown,
   ChevronLeft,
@@ -30,7 +29,9 @@ import {
   ShieldCheck,
   SlidersHorizontal,
 } from "lucide-react";
-import Login from "./Login";
+import { api } from "./api";
+import { canCreate, canEdit, canReview } from "./access";
+import { UsersAdmin, AuditView } from "./Admin";
 import {
   statuses,
   educationLevels,
@@ -38,13 +39,12 @@ import {
   skills,
   ageFromDOB,
   maskNIN,
-  normalizePhone,
   validPhone,
   emptyForm,
-  makeRecords,
 } from "./data";
 
-const titleCase = (s) => s.replace(/\b\w/g, (c) => c.toUpperCase());
+const titleCase = (s) =>
+  s.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
 const dateLabel = (d) =>
   new Date(d).toLocaleDateString("en-GB", {
     day: "2-digit",
@@ -78,165 +78,62 @@ const links = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "registrations", label: "Registrations", icon: Users },
   { id: "staff-entry", label: "New registration", icon: ClipboardList },
-  { id: "districts", label: "District overview", icon: MapPin },
+  { id: "districts", label: "Division overview", icon: MapPin },
 ];
-const PreviewContext = createContext(null);
-
-export function PreviewProvider({ children }) {
-  // Deliberately temporary session-only state. Refresh restores synthetic fixtures.
-  const [records, setRecords] = useState(makeRecords);
-  const pathname = usePathname();
-  const route = pathname.slice(1) || "overview";
+const WorkspaceContext = createContext(null);
+export default function App({ route, initialActor, initialRecords }) {
+  const actor = initialActor;
+  const [records, setRecords] = useState(initialRecords),
+    [notice, setNotice] = useState("");
   const router = useRouter();
-  const [notice, setNotice] = useState("");
-  // Presentation gate only: no credential handling or authentication provider.
-  const [entered, setEntered] = useState(false);
-  const [arriving, setArriving] = useState(false);
-  useEffect(() => {
-    if (!arriving) return;
-    document.querySelector("main")?.focus();
-    const timer = setTimeout(() => setArriving(false), 500);
-    return () => clearTimeout(timer);
-  }, [arriving, pathname]);
-  useEffect(() => {
-    // Keep links saved during the Vite preview working.
-    if (window.location.hash.startsWith("#/")) {
-      router.replace(window.location.hash.slice(1));
-    }
-  }, [router]);
-  useEffect(() => {
-    if (!notice) return;
-    const timer = setTimeout(() => setNotice(""), 5000);
-    return () => clearTimeout(timer);
-  }, [notice]);
-  const addRecord = (values, status, existingId) => {
-    const now = new Date().toISOString();
-    const id =
-      existingId ||
-      `PLU-2026-${Math.max(1041, ...records.map((r) => Number(r.id.split("-").at(-1)))) + 1}`;
-    const old = records.find((r) => r.id === existingId);
-    const record = {
-      ...values,
-      ...(ageFromDOB(values.dob) >= 18
-        ? { guardianName: "", guardianPhone: "", consent: false }
-        : {}),
+  const editRecord = route.startsWith("edit/")
+    ? records.find((r) => r.id === route.split("/")[1])
+    : null;
+  async function refresh() {
+    setRecords(await api("records"));
+    router.refresh();
+  }
+  async function addRecord(values, status, id) {
+    const old = records.find((r) => r.id === id);
+    const record = await api("records", {
+      action: "save",
+      values,
+      status,
+      id,
+      version: old?.version,
+    });
+    await refresh();
+    setNotice("Registration saved.");
+    return record;
+  }
+  async function updateStatus(id, status, reason = "") {
+    await api("records", {
+      action: "review",
       id,
       status,
-      created: old?.created || now,
-      source:
-        old?.source || (route === "register" ? "Self-service" : "Staff entry"),
-      timeline: [
-        ...(old?.timeline || []),
-        {
-          status,
-          date: now,
-          note:
-            status === "draft"
-              ? "Draft saved in this session."
-              : "Registration submitted for review.",
-        },
-      ],
-    };
-    setRecords((rs) =>
-      old ? rs.map((r) => (r.id === id ? record : r)) : [record, ...rs],
-    );
-    return record;
-  };
-  const updateStatus = (id, status, note) => {
-    setRecords((rs) =>
-      rs.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              status,
-              timeline: [
-                ...r.timeline,
-                {
-                  status,
-                  date: new Date().toISOString(),
-                  note: note || "Registration approved by demo staff.",
-                },
-              ],
-            }
-          : r,
-      ),
-    );
-    setNotice(`Registration ${status}.`);
-  };
-  return (
-    <PreviewContext.Provider
-      value={{
-        records,
-        route,
-        router,
-        notice,
-        setNotice,
-        entered,
-        setEntered,
-        arriving,
-        setArriving,
-        addRecord,
-        updateStatus,
-      }}
-    >
-      {children}
-    </PreviewContext.Provider>
-  );
-}
-
-export default function App({ route }) {
-  const {
-    records,
-    router,
-    notice,
-    setNotice,
-    entered,
-    setEntered,
-    arriving,
-    setArriving,
-    addRecord,
-    updateStatus,
-  } = useContext(PreviewContext);
-  const publicView = ["register", "status"].includes(route);
-  const editId = route.startsWith("edit/")
-    ? decodeURIComponent(route.slice(5))
-    : null;
-  const editRecord = records.find((r) => r.id === editId);
-  if (route === "login" || (!publicView && !entered)) {
-    return (
-      <Login
-        onEnter={() => {
-          setEntered(true);
-          setArriving(true);
-          if (route === "login") {
-            router.replace("/overview");
-          }
-          window.scrollTo(0, 0);
-        }}
-      />
-    );
+      reason,
+      version: records.find((r) => r.id === id)?.version,
+    });
+    await refresh();
+    setNotice("Status updated.");
   }
+  const navigation = [
+    ...links.filter((l) => l.id !== "staff-entry" || canCreate(actor)),
+    ...(actor.role === "admin-full"
+      ? [
+          { id: "users", label: "User accounts", icon: ShieldCheck },
+          { id: "audit", label: "Audit log", icon: ClipboardList },
+        ]
+      : []),
+  ];
   return (
-    <div
-      className={`${publicView ? "public-app" : "app"}${arriving ? " workspace-arrival" : ""}`}
-    >
-      {publicView ? (
-        <header className="public-header">
-          <Brand />
-          <nav>
-            <Link href="/register">Register</Link>
-            <Link href="/status">Check status</Link>
-            <Link href="/overview">
-              Staff workspace <ArrowUpRight size={14} />
-            </Link>
-          </nav>
-        </header>
-      ) : (
+    <WorkspaceContext.Provider value={{ actor }}>
+      <div className="app">
         <aside className="sidebar">
           <Brand />
           <div className="workspace-label">REGISTRATION WORKSPACE</div>
           <nav>
-            {links.map(({ id, label, icon: Icon }) => (
+            {navigation.map(({ id, label, icon: Icon }) => (
               <Link
                 key={id}
                 className={route === id ? "active" : ""}
@@ -244,110 +141,97 @@ export default function App({ route }) {
               >
                 <Icon size={18} />
                 {label}
-                {id === "registrations" && (
-                  <span className="nav-count">{records.length}</span>
-                )}
               </Link>
             ))}
           </nav>
-          <div className="sidebar-public">
-            <div className="workspace-label">PUBLIC PORTAL</div>
-            <Link href="/register">
-              Self-service registration <ArrowUpRight size={16} />
-            </Link>
-            <Link href="/status">
-              Check registration status <ArrowUpRight size={16} />
-            </Link>
-          </div>
           <div className="sidebar-bottom">
-            <div className="demo-card">
-              <span className="demo-dot" /> PREVIEW WORKSPACE
-              <p>Mock data. Changes last until refresh.</p>
-            </div>
             <div className="staff-profile">
-              <span className="avatar">PS</span>
+              <span className="avatar">
+                {actor.name.slice(0, 2).toUpperCase()}
+              </span>
               <div>
-                <strong>PLU Staff</strong>
-                <small>Demonstration account</small>
+                <strong>{actor.name}</strong>
+                <small>{actor.role}</small>
+                <small>{actor.division || "All Kampala divisions"}</small>
+                {actor.is_test && <small>SEED / TEST ACCOUNT</small>}
               </div>
             </div>
+            <button
+              className="button"
+              onClick={async () => {
+                try {
+                  await api("auth/logout", {});
+                  window.location.assign("/login");
+                } catch (e) {
+                  setNotice(e.message);
+                }
+              }}
+            >
+              Sign out
+            </button>
           </div>
         </aside>
-      )}
-      <div className="main-shell">
-        {!publicView && (
+        <div className="main-shell">
           <header className="topbar">
             <span>
-              Youth programme <ChevronRight size={13} />{" "}
+              Youth programme <ChevronRight size={13} />
               <strong>
-                {editId
-                  ? "Edit draft"
-                  : links.find((l) => l.id === route)?.label || "Overview"}
+                {navigation.find((l) => l.id === route)?.label ||
+                  "Edit registration"}
               </strong>
             </span>
-            <span className="topbar-right">
-              <span className="demo-dot" /> Preliminary build{" "}
-              <span className="topbar-divider" /> UGANDA
-            </span>
+            <span className="topbar-right">KAMPALA</span>
           </header>
-        )}
-        <main tabIndex={-1}>
-          {route === "overview" ? (
-            <Overview records={records} updateStatus={updateStatus} />
-          ) : route === "registrations" ? (
-            <>
-              <PageHeading
-                eyebrow="REGISTRATION MANAGEMENT"
-                title="Youth registrations"
-                subtitle="Review applications. Follow progress. Keep every registration moving."
-                action
+          <main tabIndex={-1}>
+            {route === "overview" ? (
+              <Overview records={records} updateStatus={updateStatus} />
+            ) : route === "registrations" ? (
+              <>
+                <PageHeading
+                  eyebrow="REGISTRATION MANAGEMENT"
+                  title="Youth registrations"
+                  subtitle="Review applications and follow progress."
+                  action
+                />
+                <RegisterTable records={records} updateStatus={updateStatus} />
+              </>
+            ) : route === "districts" ? (
+              <DivisionView records={records} />
+            ) : route === "users" ? (
+              <UsersAdmin actor={actor} />
+            ) : route === "audit" ? (
+              <AuditView />
+            ) : route === "staff-entry" || editRecord ? (
+              <RegistrationForm
+                key={route}
+                staff
+                initial={editRecord}
+                onSave={addRecord}
               />
-              <RegisterTable records={records} updateStatus={updateStatus} />
-            </>
-          ) : route === "districts" ? (
-            <DistrictView records={records} />
-          ) : route === "staff-entry" || editRecord ? (
-            <RegistrationForm
-              key={route}
-              staff
-              initial={editRecord}
-              onSave={addRecord}
-            />
-          ) : route === "register" ? (
-            <RegistrationForm key="public" onSave={addRecord} />
-          ) : route === "status" ? (
-            <StatusCheck records={records} />
-          ) : (
-            <div className="empty">
-              <h1>Page not found</h1>
-              <Link href="/overview">Return to overview</Link>
-            </div>
-          )}
-        </main>
-        <footer>
-          <span>
-            Patriotic League of Uganda <span className="footer-dot">•</span>{" "}
-            Youth Registration
-          </span>
-          <span>Patriotism. Unity. Service.</span>
-        </footer>
-      </div>
-      {notice && (
-        <div role="status" className="toast">
-          <Check size={18} />
-          {notice}
-          <button
-            onClick={() => setNotice("")}
-            aria-label="Dismiss notification"
-          >
-            <X size={16} />
-          </button>
+            ) : null}
+          </main>
+          <footer>
+            <span>Patriotic League of Uganda · Youth Registration</span>
+            <span>Patriotism. Unity. Service.</span>
+          </footer>
         </div>
-      )}
-    </div>
+        {notice && (
+          <div role="status" className="toast">
+            {notice}
+            <button
+              onClick={() => setNotice("")}
+              aria-label="Dismiss notification"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
+      </div>
+    </WorkspaceContext.Provider>
   );
 }
 function PageHeading({ eyebrow, title, subtitle, action }) {
+  const { actor } = useContext(WorkspaceContext);
   return (
     <div className="page-heading">
       <div>
@@ -355,7 +239,7 @@ function PageHeading({ eyebrow, title, subtitle, action }) {
         <h1>{title}</h1>
         <p className="subtitle">{subtitle}</p>
       </div>
-      {action && (
+      {action && canCreate(actor) && (
         <Link className="button primary" href="/staff-entry">
           <Plus size={17} /> New registration
         </Link>
@@ -369,12 +253,11 @@ function Stats({ records }) {
       "Total registrations",
       records.length,
       Users,
-      "Across all sample districts",
+      "Within your division access",
     ],
     [
       "Awaiting review",
-      records.filter((r) => ["submitted", "pending review"].includes(r.status))
-        .length,
+      records.filter((r) => ["submitted"].includes(r.status)).length,
       Clock3,
       "Ready for your attention",
     ],
@@ -386,7 +269,7 @@ function Stats({ records }) {
     ],
     [
       "Needs correction",
-      records.filter((r) => r.status === "needs correction").length,
+      records.filter((r) => r.status === "needs_correction").length,
       ClipboardList,
       "Waiting for updated details",
     ],
@@ -415,24 +298,9 @@ function Overview({ records, updateStatus }) {
       <PageHeading
         eyebrow="YOUTH REGISTRATION / OVERVIEW"
         title="Every young person. A place to begin."
-        subtitle="A clear view of registrations, reviews and participation across Uganda."
+        subtitle="A clear view of registrations, reviews and participation across Kampala."
         action
       />
-      <div className="welcome-strip">
-        <div className="strip-icon">
-          <Users size={24} />
-        </div>
-        <div>
-          <strong>Building participation, one registration at a time.</strong>
-          <p>
-            Capture details in the field or let young people register
-            themselves.
-          </p>
-        </div>
-        <Link href="/register">
-          Open public registration <ArrowUpRight size={17} />
-        </Link>
-      </div>
       <Stats records={records} />
       <div className="overview-columns">
         <section className="panel pipeline-panel">
@@ -441,10 +309,10 @@ function Overview({ records, updateStatus }) {
               <p className="eyebrow">REGISTRATION JOURNEY</p>
               <h2>A clear path forward</h2>
             </div>
-            <span className="muted small">All session records</span>
+            <span className="muted small">Saved records</span>
           </div>
           <div className="pipeline">
-            {["draft", "submitted", "pending review", "approved"].map(
+            {["draft", "submitted", "needs_correction", "approved"].map(
               (s, i) => (
                 <React.Fragment key={s}>
                   <div>
@@ -464,7 +332,7 @@ function Overview({ records, updateStatus }) {
           <div className="panel-foot">
             <span>
               <span className="tiny-dot red" />{" "}
-              {records.filter((r) => r.status === "needs correction").length}{" "}
+              {records.filter((r) => r.status === "needs_correction").length}{" "}
               registrations need updated details
             </span>
             <Link href="/registrations">
@@ -474,17 +342,17 @@ function Overview({ records, updateStatus }) {
         </section>
         <section className="district-callout">
           <div className="section-top">
-            <p className="eyebrow">DISTRICT PARTICIPATION</p>
+            <p className="eyebrow">DIVISION PARTICIPATION</p>
             <MapPin size={20} />
           </div>
           <div className="district-number">
             {new Set(records.map((r) => r.district).filter(Boolean)).size}
-            <span>/ 146</span>
+            <span>/ 5</span>
           </div>
-          <h3>Districts in this preview</h3>
-          <p>A representative sample to explore a national view.</p>
+          <h3>Divisions represented</h3>
+          <p>Participation across Kampala’s five divisions.</p>
           <Link href="/districts">
-            Explore district overview <ArrowUpRight size={17} />
+            Explore division overview <ArrowUpRight size={17} />
           </Link>
         </section>
       </div>
@@ -495,7 +363,7 @@ function Overview({ records, updateStatus }) {
 function RegisterTable({ records, updateStatus, compact = false }) {
   const [search, setSearch] = useState(""),
     [status, setStatus] = useState("all"),
-    [district, setDistrict] = useState("all"),
+    [district, setDivision] = useState("all"),
     [education, setEducation] = useState("all"),
     [open, setOpen] = useState(null),
     [page, setPage] = useState(0);
@@ -558,11 +426,11 @@ function RegisterTable({ records, updateStatus, compact = false }) {
             ))}
           </select>
           <select
-            aria-label="Filter by district"
+            aria-label="Filter by division"
             value={district}
-            onChange={(e) => setDistrict(e.target.value)}
+            onChange={(e) => setDivision(e.target.value)}
           >
-            <option value="all">All districts</option>
+            <option value="all">All divisions</option>
             {districts.map((s) => (
               <option key={s}>{s}</option>
             ))}
@@ -586,7 +454,7 @@ function RegisterTable({ records, updateStatus, compact = false }) {
           <thead>
             <tr>
               <th>REGISTRANT</th>
-              <th>DISTRICT</th>
+              <th>DIVISION</th>
               <th>EDUCATION</th>
               <th>STATUS</th>
               <th>DATE REGISTERED</th>
@@ -660,7 +528,7 @@ function RegisterTable({ records, updateStatus, compact = false }) {
             onClick={() => {
               setSearch("");
               setStatus("all");
-              setDistrict("all");
+              setDivision("all");
               setEducation("all");
             }}
           >
@@ -700,8 +568,30 @@ function RegisterTable({ records, updateStatus, compact = false }) {
   );
 }
 function RecordDetail({ record: r, updateStatus }) {
+  const { actor } = useContext(WorkspaceContext);
   const [action, setAction] = useState(""),
-    [note, setNote] = useState("");
+    [note, setNote] = useState(""),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false),
+    [nin, setNin] = useState(null);
+  useEffect(() => {
+    if (nin === null) return;
+    const timer = setTimeout(() => setNin(null), 30000);
+    return () => clearTimeout(timer);
+  }, [nin]);
+  async function review(status) {
+    setBusy(true);
+    setError("");
+    try {
+      await updateStatus(r.id, status, note);
+      setAction("");
+      setNote("");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <div className="record-detail">
       <div>
@@ -709,13 +599,9 @@ function RecordDetail({ record: r, updateStatus }) {
         <dl>
           {[
             ["Phone", r.phone],
-            ["NIN", maskNIN(r.nin)],
-            [
-              "Date of birth",
-              r.dob ? `${dateLabel(r.dob)} · ${ageFromDOB(r.dob)} years` : "—",
-            ],
-            ["Subcounty", r.subcounty],
-            ["Entry mode", r.source],
+            ["NIN", nin ?? r.ninMasked],
+            ["Date of birth", r.dob],
+            ["Locality / parish", r.subcounty],
             ["Skills / interests", r.skills.join(", ")],
             ...(ageFromDOB(r.dob) !== null && ageFromDOB(r.dob) < 18
               ? [
@@ -731,39 +617,59 @@ function RecordDetail({ record: r, updateStatus }) {
             </div>
           ))}
         </dl>
-        {r.status === "draft" ? (
-          <Link className="button primary" href={`/edit/${r.id}`}>
-            Continue draft <ArrowRight size={16} />
-          </Link>
-        ) : (
+        <div className="button-row">
+          {canEdit(actor, r) && (
+            <Link className="button primary" href={`/edit/${r.id}`}>
+              Edit registration
+            </Link>
+          )}
+          {actor.role === "admin-full" && r.hasNin && (
+            <button
+              className="button"
+              disabled={busy}
+              onClick={async () => {
+                if (nin !== null) {
+                  setNin(null);
+                  return;
+                }
+                setBusy(true);
+                try {
+                  const result = await api("records", {
+                    action: "unmask",
+                    id: r.id,
+                  });
+                  setNin(result.nin);
+                } catch (e) {
+                  setError(e.message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {nin !== null ? "Hide NIN" : "Unmask NIN"}
+            </button>
+          )}
+        </div>
+        {canReview(actor, r) && (
           <div className="review-actions">
             <button
               className="button primary"
-              disabled={r.status === "approved"}
-              onClick={() => {
-                updateStatus(r.id, "approved");
-                setAction("");
-              }}
+              disabled={busy}
+              onClick={() => review("approved")}
             >
-              <Check size={16} />
               Approve
             </button>
             <button
               className="button"
-              onClick={() => {
-                setAction("needs correction");
-                setNote("");
-              }}
+              disabled={busy}
+              onClick={() => setAction("needs_correction")}
             >
               Request correction
             </button>
             <button
               className="button danger"
-              disabled={r.status === "rejected"}
-              onClick={() => {
-                setAction("rejected");
-                setNote("");
-              }}
+              disabled={busy}
+              onClick={() => setAction("rejected")}
             >
               Reject
             </button>
@@ -774,10 +680,7 @@ function RecordDetail({ record: r, updateStatus }) {
             className="action-form"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!note.trim()) return;
-              updateStatus(r.id, action, note.trim());
-              setAction("");
-              setNote("");
+              review(action);
             }}
           >
             <label>
@@ -785,26 +688,28 @@ function RecordDetail({ record: r, updateStatus }) {
                 ? "Reason for rejection"
                 : "Details to correct"}
               <textarea
-                autoFocus
                 required
+                maxLength={2000}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Add a clear note for the registrant"
               />
             </label>
-            <div className="button-row">
-              <button className="button primary" type="submit">
-                Confirm {action === "rejected" ? "rejection" : "request"}
-              </button>
-              <button
-                className="button"
-                type="button"
-                onClick={() => setAction("")}
-              >
-                Cancel
-              </button>
-            </div>
+            <button className="button primary" disabled={busy}>
+              Confirm decision
+            </button>
+            <button
+              type="button"
+              className="button"
+              onClick={() => setAction("")}
+            >
+              Cancel
+            </button>
           </form>
+        )}
+        {error && (
+          <p role="alert" className="form-error">
+            {error}
+          </p>
         )}
       </div>
       <div>
@@ -813,12 +718,8 @@ function RecordDetail({ record: r, updateStatus }) {
           {[...r.timeline].reverse().map((t, i) => (
             <li key={i}>
               <strong>{titleCase(t.status)}</strong>
-              <time>
-                {new Date(t.date).toLocaleString("en-GB", {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                })}
-              </time>
+              <time>{new Date(t.date).toLocaleString("en-GB")}</time>
+              <p>{t.actor}</p>
               <p>{t.note}</p>
             </li>
           ))}
@@ -842,8 +743,12 @@ function Field({ label, children, hint }) {
 }
 function RegistrationForm({ staff = false, initial, onSave }) {
   const router = useRouter();
+  const { actor } = useContext(WorkspaceContext);
+  const [busy, setBusy] = useState(false);
   const [values, setValues] = useState(() =>
-      initial ? { ...initial } : emptyForm(),
+      initial
+        ? { ...initial, nin: "" }
+        : { ...emptyForm(), district: actor.division || "" },
     ),
     [ninFocus, setNinFocus] = useState(false),
     [result, setResult] = useState(null),
@@ -851,7 +756,8 @@ function RegistrationForm({ staff = false, initial, onSave }) {
   const age = ageFromDOB(values.dob),
     minor = age !== null && age < 18;
   const change = (key, value) => setValues((v) => ({ ...v, [key]: value }));
-  function save(status) {
+  async function save(status) {
+    if (busy) return;
     setError("");
     if (
       status !== "draft" &&
@@ -876,8 +782,15 @@ function RegistrationForm({ staff = false, initial, onSave }) {
       setError("Please enter a valid date of birth.");
       return;
     }
-    const record = onSave(values, status, initial?.id);
-    setResult(record);
+    setBusy(true);
+    try {
+      const record = await onSave(values, status, initial?.id);
+      setResult(record);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
   }
   if (result)
     return (
@@ -897,7 +810,7 @@ function RegistrationForm({ staff = false, initial, onSave }) {
         </h1>
         <p>
           {result.status === "draft"
-            ? "Continue this draft from the register during this session."
+            ? "Continue this draft from the register."
             : "Your details are submitted and ready for review. Keep this reference to check progress."}
         </p>
         <div className="reference">
@@ -912,7 +825,7 @@ function RegistrationForm({ staff = false, initial, onSave }) {
               <button
                 className="button primary"
                 onClick={() => {
-                  setValues(emptyForm());
+                  setValues({ ...emptyForm(), district: actor.division || "" });
                   setResult(null);
                   if (initial) router.push("/staff-entry");
                 }}
@@ -924,13 +837,13 @@ function RegistrationForm({ staff = false, initial, onSave }) {
               </Link>
             </>
           ) : (
-            <Link className="button primary" href="/status">
-              Check my status <ArrowRight size={17} />
+            <Link className="button primary" href="/registrations">
+              View register <ArrowRight size={17} />
             </Link>
           )}
         </div>
         <small className="muted">
-          Preview only. This registration will reset when the page refreshes.
+          Your registration has been saved securely.
         </small>
       </div>
     );
@@ -956,7 +869,14 @@ function RegistrationForm({ staff = false, initial, onSave }) {
           className="panel registration-form"
           onSubmit={(e) => {
             e.preventDefault();
-            save("submitted");
+            save(
+              initial &&
+                ["submitted", "needs_correction", "approved"].includes(
+                  initial.status,
+                )
+                ? initial.status
+                : "submitted",
+            );
           }}
         >
           <div className="form-section">
@@ -989,10 +909,14 @@ function RegistrationForm({ staff = false, initial, onSave }) {
               </Field>
               <Field
                 label="National Identification Number (NIN)"
-                hint="Use a fictional identifier for this preview."
+                hint={
+                  initial?.hasNin
+                    ? `Stored NIN: ${initial.ninMasked}. Leave blank to keep it.`
+                    : "Enter the 14-character NIN."
+                }
               >
                 <input
-                  required
+                  required={!initial?.hasNin}
                   autoComplete="off"
                   value={
                     ninFocus
@@ -1012,7 +936,9 @@ function RegistrationForm({ staff = false, initial, onSave }) {
                         .slice(0, 14),
                     )
                   }
-                  placeholder="Enter a demo NIN"
+                  placeholder={
+                    initial?.hasNin ? "Enter replacement NIN" : "Enter NIN"
+                  }
                 />
               </Field>
               <Field
@@ -1079,27 +1005,28 @@ function RegistrationForm({ staff = false, initial, onSave }) {
               </div>
             </div>
             <div className="field-grid">
-              <Field label="District">
+              <Field label="Division">
                 <select
                   required
+                  disabled={!!initial || actor.role === "registration"}
                   value={values.district}
                   onChange={(e) => {
                     change("district", e.target.value);
                     change("subcounty", "");
                   }}
                 >
-                  <option value="">Select district</option>
+                  <option value="">Select division</option>
                   {districts.map((d) => (
                     <option key={d}>{d}</option>
                   ))}
                 </select>
               </Field>
-              <Field label="Subcounty">
+              <Field label="Locality / parish">
                 <input
                   required
                   value={values.subcounty}
                   onChange={(e) => change("subcounty", e.target.value)}
-                  placeholder="Enter subcounty"
+                  placeholder="Enter locality / parish"
                 />
               </Field>
               <Field label="Education level">
@@ -1156,20 +1083,36 @@ function RegistrationForm({ staff = false, initial, onSave }) {
               {error}
             </p>
           )}
+          {initial?.status === "needs_correction" && (
+            <button
+              type="button"
+              className="button primary"
+              disabled={busy}
+              onClick={() => save("submitted")}
+            >
+              Resubmit for review
+            </button>
+          )}
           <div className="form-actions">
-            <span>Preview · use fictional details only</span>
+            <span>Changes are saved with an audit trail.</span>
             <div className="button-row">
-              {staff && (
+              {staff && (!initial || initial.status === "draft") && (
                 <button
                   className="button"
                   type="button"
+                  disabled={busy}
                   onClick={() => save("draft")}
                 >
                   Save draft
                 </button>
               )}
-              <button className="button primary" type="submit">
-                Submit registration <ArrowRight size={17} />
+              <button className="button primary" type="submit" disabled={busy}>
+                {busy
+                  ? "Saving…"
+                  : initial
+                    ? "Save changes"
+                    : "Submit registration"}{" "}
+                <ArrowRight size={17} />
               </button>
             </div>
           </div>
@@ -1182,7 +1125,7 @@ function RegistrationForm({ staff = false, initial, onSave }) {
           <p>
             {staff
               ? "One person, one registration. Keep a phone number and reference handy for follow-up."
-              : "After you submit, your registration will be reviewed. You can check its progress at any time during this preview."}
+              : "After submission, approvers review the record."}
           </p>
           <ol>
             <li>Enter registration details</li>
@@ -1191,140 +1134,17 @@ function RegistrationForm({ staff = false, initial, onSave }) {
           </ol>
           <div className="aside-note">
             <CircleHelp size={18} />
-            <p>This is a preliminary preview using local, temporary data.</p>
+            <p>Only authorized staff can access this register.</p>
           </div>
         </aside>
       </div>
     </div>
   );
 }
-function StatusCheck({ records }) {
-  const [phone, setPhone] = useState(""),
-    [reference, setReference] = useState(""),
-    [lookup, setLookup] = useState(null);
-  const record =
-    lookup &&
-    records.find(
-      (r) =>
-        normalizePhone(r.phone) === lookup.phone && r.id === lookup.reference,
-    );
-  return (
-    <div className="status-page">
-      <p className="eyebrow">PUBLIC STATUS CHECK</p>
-      <h1>
-        A little clarity.
-        <br />
-        Every step of the way.
-      </h1>
-      <p className="subtitle">Check where your youth registration stands.</p>
-      <form
-        className="panel status-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setLookup({
-            phone: normalizePhone(phone),
-            reference: reference.trim().toUpperCase(),
-          });
-        }}
-      >
-        <Field label="Phone number">
-          <input
-            required
-            type="tel"
-            placeholder="0700000000"
-            value={phone}
-            onChange={(e) => {
-              setPhone(e.target.value);
-              setLookup(null);
-            }}
-          />
-        </Field>
-        <Field label="Registration reference">
-          <input
-            required
-            placeholder="PLU-2026-1042"
-            value={reference}
-            onChange={(e) => {
-              setReference(e.target.value);
-              setLookup(null);
-            }}
-          />
-        </Field>
-        <button className="button primary" type="submit">
-          Check registration status <ArrowRight size={18} />
-        </button>
-        <div className="demo-hint">
-          <strong>Try a sample registration</strong>
-          <button
-            type="button"
-            onClick={() => {
-              setPhone("0700000000");
-              setReference("PLU-2026-1042");
-              setLookup(null);
-            }}
-          >
-            Use demo details <ArrowUpRight size={14} />
-          </button>
-        </div>
-      </form>
-      {lookup && (
-        <div className="panel status-result" role="status">
-          {record ? (
-            <>
-              <Badge
-                status={
-                  ["draft", "submitted", "pending review"].includes(
-                    record.status,
-                  )
-                    ? "pending review"
-                    : record.status
-                }
-              />
-              <h2>
-                {record.status === "approved"
-                  ? "Your registration is approved."
-                  : record.status === "needs correction"
-                    ? "A few details need your attention."
-                    : record.status === "rejected"
-                      ? "Your registration was not approved."
-                      : record.status === "draft"
-                        ? "Your registration is still a draft."
-                        : "Your registration is awaiting review."}
-              </h2>
-              <p>
-                {["needs correction", "rejected"].includes(record.status)
-                  ? record.timeline.at(-1).note
-                  : record.status === "draft"
-                    ? "Ask staff to complete and submit your registration."
-                    : "Keep your reference for future follow-up."}
-              </p>
-              <small>
-                {record.id} · Updated {dateLabel(record.timeline.at(-1).date)}
-              </small>
-            </>
-          ) : (
-            <>
-              <h2>No matching registration</h2>
-              <p>
-                Check that your phone number and reference are correct. Preview
-                records reset on refresh.
-              </p>
-            </>
-          )}
-        </div>
-      )}
-      <p className="public-bottom">
-        Not registered yet?{" "}
-        <Link href="/register">
-          Start your registration <ArrowUpRight size={14} />
-        </Link>
-      </p>
-    </div>
-  );
-}
-function DistrictView({ records }) {
+function DivisionView({ records }) {
   const [query, setQuery] = useState("");
-  const rollups = districts
+  const { actor } = useContext(WorkspaceContext);
+  const rollups = (actor.role === "registration" ? [actor.division] : districts)
     .map((d) => ({
       name: d,
       total: records.filter((r) => r.district === d).length,
@@ -1338,18 +1158,17 @@ function DistrictView({ records }) {
     <>
       <PageHeading
         eyebrow="LEADERSHIP VIEW"
-        title="Participation across districts."
-        subtitle="One shared register. A district-by-district view of youth participation."
+        title="Participation across divisions."
+        subtitle="One shared register. A division-by-division view of youth participation."
       />
       <Stats records={records} />
       <section className="panel district-chart">
         <div className="section-top">
           <div>
-            <p className="eyebrow">DISTRICT ROLLUP</p>
-            <h2>Local registrations. National perspective.</h2>
+            <p className="eyebrow">DIVISION ROLLUP</p>
+            <h2>Local registrations. Kampala perspective.</h2>
             <p className="muted small">
-              12 sample districts from the supplied 146-district structure.
-              Counts include drafts.
+              Five Kampala divisions. Counts include drafts.
             </p>
           </div>
           <span className="chart-key">
@@ -1361,10 +1180,10 @@ function DistrictView({ records }) {
         <label className="search-box">
           <Search size={17} />
           <input
-            aria-label="Find a district"
+            aria-label="Find a division"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Find a district…"
+            placeholder="Find a division…"
           />
         </label>
         <div className="bar-chart">
@@ -1405,12 +1224,9 @@ function DistrictView({ records }) {
         </div>
         {!rollups.some((d) =>
           d.name.toLowerCase().includes(query.toLowerCase()),
-        ) && (
-          <div className="empty">No sample districts match your search.</div>
-        )}
+        ) && <div className="empty">No divisions match your search.</div>}
         <div className="panel-foot">
-          Illustrative data only · Totals update as you register and review
-          people in this session.
+          Totals reflect saved records within your access, including drafts.
         </div>
       </section>
     </>

@@ -1,9 +1,13 @@
-import type { NextRequest } from "next/server";
-import { updateSession } from "@/utils/supabase/middleware";
+import { NextResponse, type NextRequest } from "next/server";
 
 // Next.js 16 names its request middleware entry point "proxy".
 export async function proxy(request: NextRequest) {
-  return updateSession(request);
+  const response = NextResponse.next({ request });
+  response.headers.set("Cache-Control", "private, no-store");
+  response.headers.set("Referrer-Policy", "same-origin");
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  return response;
 }
 
 export const config = {

@@ -1,30 +1,41 @@
 "use client";
-import Link from "next/link";
 import Image from "next/image";
-import React, { useEffect, useState } from "react";
-import { ArrowRight, ArrowUpRight, Eye, EyeOff, Check } from "lucide-react";
+import React, { useState } from "react";
+import { api } from "./api";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
 
-export default function Login({ onEnter }) {
-  const [visible, setVisible] = useState(false);
-  const [entering, setEntering] = useState(false);
-  useEffect(() => {
-    if (!entering) return;
-    const reducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    const timer = setTimeout(onEnter, reducedMotion ? 250 : 1100);
-    return () => clearTimeout(timer);
-  }, [entering, onEnter]);
-
-  function enter(event) {
+export default function Login() {
+  const [visible, setVisible] = useState(false),
+    [entering, setEntering] = useState(false),
+    [stage, setStage] = useState("login"),
+    [error, setError] = useState("");
+  async function enter(event) {
     event.preventDefault();
     if (entering) return;
-    // Visual prototype only. Credentials are never read, checked, stored or sent.
     setEntering(true);
+    setError("");
+    const values = Object.fromEntries(new FormData(event.currentTarget));
+    if (stage === "password" && values.password !== values.confirm) {
+      setError("Passwords do not match.");
+      setEntering(false);
+      return;
+    }
+    try {
+      const result = await api(`auth/${stage}`, values);
+      if (result.stage === "complete") {
+        window.location.assign("/overview");
+        return;
+      }
+      setStage(result.stage);
+      event.target.reset();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setEntering(false);
+    }
   }
-
   return (
-    <div className={`login-page${entering ? " is-entering" : ""}`}>
+    <div className="login-page">
       <section className="login-art" aria-label="Patriotic League of Uganda">
         <div className="login-art-image" aria-hidden="true" />
         <div className="login-brand">
@@ -62,8 +73,8 @@ export default function Login({ onEnter }) {
       <main className="login-main">
         <div className="login-topline">
           <span>YOUTH REGISTER</span>
-          <span className="login-preview">
-            <i /> PRELIMINARY PREVIEW
+          <span className="login-access">
+            <i /> STAFF ACCESS
           </span>
         </div>
         <div className="login-form-wrap">
@@ -73,67 +84,135 @@ export default function Login({ onEnter }) {
             <h1>Welcome back.</h1>
             <p>Step into your registration workspace.</p>
           </div>
-          <form
-            className="login-form"
-            noValidate
-            onSubmit={enter}
-            aria-busy={entering}
-          >
-            <label htmlFor="login-username">Email or username</label>
-            <input
-              id="login-username"
-              type="text"
-              autoComplete="username"
-              placeholder="Enter your email or username"
-            />
-            <div className="login-password-label">
-              <label htmlFor="login-password">Password</label>
-              <span>Preview access</span>
-            </div>
-            <div className="login-password">
-              <input
-                id="login-password"
-                type={visible ? "text" : "password"}
-                autoComplete="current-password"
-                placeholder="Enter your password"
-              />
+          <form className="login-form" onSubmit={enter} aria-busy={entering}>
+            {stage === "login" && (
+              <>
+                <label htmlFor="login-email">Email</label>
+                <input
+                  id="login-email"
+                  name="email"
+                  type="email"
+                  required
+                  autoComplete="username"
+                  placeholder="Your registered email"
+                />
+              </>
+            )}
+            {stage === "otp" ? (
+              <>
+                <label htmlFor="login-code">Email verification code</label>
+                <input
+                  id="login-code"
+                  name="code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  required
+                  pattern="[0-9]{6,10}"
+                  maxLength={10}
+                />
+                <p>
+                  Enter the code sent to your registered email. Codes expire;
+                  start again to request another.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="login-password-label">
+                  <label htmlFor="login-password">
+                    {stage === "password"
+                      ? "Set your permanent password"
+                      : "Password"}
+                  </label>
+                </div>
+                <div className="login-password">
+                  <input
+                    key={stage}
+                    id="login-password"
+                    name="password"
+                    type={visible ? "text" : "password"}
+                    required
+                    minLength={stage === "password" ? 12 : 1}
+                    maxLength={128}
+                    autoComplete={
+                      stage === "password" ? "new-password" : "current-password"
+                    }
+                  />
+                  <button
+                    type="button"
+                    aria-label={visible ? "Hide password" : "Show password"}
+                    aria-pressed={visible}
+                    onClick={() => setVisible(!visible)}
+                  >
+                    {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                {stage === "password" && (
+                  <>
+                    <p>
+                      Use 12?128 characters, including uppercase, lowercase and
+                      a number.
+                    </p>
+                    <label htmlFor="password-confirm">
+                      Confirm permanent password
+                    </label>
+                    <input
+                      id="password-confirm"
+                      name="confirm"
+                      type="password"
+                      required
+                      minLength={12}
+                      maxLength={128}
+                      autoComplete="new-password"
+                    />
+                  </>
+                )}
+              </>
+            )}
+            {error && (
+              <p role="alert" className="form-error">
+                {error}
+              </p>
+            )}
+            <button className="login-submit" type="submit" disabled={entering}>
+              <span>
+                {entering
+                  ? "Please wait?"
+                  : stage === "otp"
+                    ? "Verify email"
+                    : stage === "password"
+                      ? "Save password"
+                      : "Sign in"}
+              </span>
+              <ArrowRight size={19} />
+            </button>
+            {stage !== "login" && (
               <button
                 type="button"
-                aria-label={visible ? "Hide password" : "Show password"}
-                aria-pressed={visible}
-                onClick={() => setVisible((v) => !v)}
+                className="button"
+                disabled={entering}
+                onClick={async () => {
+                  try {
+                    await api("auth/logout", {});
+                    setStage("login");
+                    setError("");
+                  } catch (e) {
+                    setError(e.message);
+                  }
+                }}
               >
-                {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+                Start again
               </button>
-            </div>
-            <button
-              className="login-submit"
-              type="submit"
-              aria-disabled={entering}
-            >
-              <span>
-                {entering ? "Welcome to your workspace" : "Enter workspace"}
-              </span>
-              {entering ? <Check size={19} /> : <ArrowRight size={19} />}
-            </button>
-            <div className="login-transition" role="status" aria-live="polite">
-              {entering
-                ? "Opening your dashboard…"
-                : "Demo access · Any details work, including blank fields."}
-            </div>
+            )}
           </form>
           <div className="login-public">
-            <span>Here to register yourself?</span>
-            <Link href="/register">
-              Go to public registration <ArrowUpRight size={15} />
-            </Link>
+            <span>
+              Need access or a password reset? Contact your PLU administrator.
+            </span>
           </div>
         </div>
         <div className="login-bottomline">
           <span>PLU Youth Registration</span>
-          <Link href="/status">
-            Check registration status <ArrowUpRight size={13} />
-          </Link>
+          <span>Kampala workspace</span>
         </div>
       </main>
     </div>
