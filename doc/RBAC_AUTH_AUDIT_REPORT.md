@@ -9,9 +9,11 @@
 - Owner-only registration edits in draft/submitted/needs_correction; approved registrations lock registration staff out; rejected records are terminal. Approvers decide submitted records with required rejection/correction reasons and cannot change submitted fields. Correction edits and resubmission are separate actions.
 - Password verification, server-held email OTP challenge, initial permanent-password change, fixed eight-hour sessions, ten-minute incomplete-login expiry, session rotation, logout, durable login/code attempt limits, origin checks and no-store responses. OTP is enabled by default and full admins can toggle it for any user, including themselves.
 - Full-admin account creation, name/role/division/active-state editing, OTP control and explicit temporary-password resets. Role/account/security changes invalidate existing sessions. No self-registration or anonymous password-reset interface.
+- A separate `is_system_admin` protection flag identifies the permanent platform-builder `admin-full` account. Other administrators cannot manage that account; blocked server-side attempts are committed as `account.protection_blocked` audit events. The system administrator can still manage other accounts, including the organization's full administrator.
 - Atomic record changes and audit events; field before/after values; attributed status history; account action intent/outcome records; NIN unmask events. The audit UI filters by actor, record, action and UTC dates, paginates and exports the displayed page.
 - AES-256-GCM NIN encryption, record-ID authentication binding, masked ordinary responses, admin-only audited reveal with automatic hiding. NIN field audit entries contain a change marker, not plaintext before/after values.
 - Explicit seed script for exactly four accounts: one per role, registration assigned to Kampala Central, clearly named SEED TEST, OTP on and permanent-password change required. Temporary credentials are generated into an ignored local file; no credentials are embedded in source.
+- A separate `npm run seed:system-admin` script provisions `hambatariq84@gmail.com` as the real, non-test System Administrator with OTP enabled and permanent-password setup required. It is excluded from test-seed inventory and retirement.
 
 ## Live changes and evidence
 

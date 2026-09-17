@@ -111,13 +111,21 @@ export function UsersAdmin({ actor }) {
                       <span>
                         <strong>
                           {u.name}
+                          {u.is_system_admin ? " · SYSTEM ADMINISTRATOR" : ""}
                           {u.is_test ? " · SEED / TEST" : ""}
                         </strong>
                         <small>{u.email}</small>
                       </span>
                     </button>
                   </td>
-                  <td>{u.role}</td>
+                  <td>
+                    {u.role}
+                    {u.is_system_admin && (
+                      <small className="admin-protected-label">
+                        Protected system account
+                      </small>
+                    )}
+                  </td>
                   <td>{u.division || "All five"}</td>
                   <td>
                     {u.active ? "Active" : "Inactive"}
@@ -140,6 +148,12 @@ export function UsersAdmin({ actor }) {
         }}
       >
         <h2>{selected ? `Manage ${selected.name}` : "Create account"}</h2>
+        {selected?.is_system_admin && (
+          <p className="muted">
+            Protected system administrator account. Only this account can
+            change or deactivate itself; other administrators cannot manage it.
+          </p>
+        )}
         <div className="field-grid">
           <label className="field">
             Name
@@ -148,6 +162,7 @@ export function UsersAdmin({ actor }) {
               maxLength={100}
               value={form.name}
               onChange={(e) => change("name", e.target.value)}
+              disabled={selected?.is_system_admin && selected.id !== actor.id}
             />
           </label>
           <label className="field">
@@ -164,6 +179,7 @@ export function UsersAdmin({ actor }) {
             Role
             <select
               value={form.role}
+              disabled={selected?.is_system_admin && selected.id !== actor.id}
               onChange={(e) => change("role", e.target.value)}
             >
               {roles.map((r) => (
@@ -217,6 +233,7 @@ export function UsersAdmin({ actor }) {
             <input
               type="checkbox"
               checked={form.active}
+              disabled={selected?.is_system_admin && selected.id !== actor.id}
               onChange={(e) => change("active", e.target.checked)}
             />
             Account active
@@ -231,7 +248,9 @@ export function UsersAdmin({ actor }) {
               <button
                 type="button"
                 className="button"
-                disabled={busy}
+                disabled={
+                  busy || (selected.is_system_admin && selected.id !== actor.id)
+                }
                 onClick={() => submit("otp")}
               >
                 {selected.otp_enabled ? "Turn OTP off" : "Turn OTP on"}
@@ -239,7 +258,11 @@ export function UsersAdmin({ actor }) {
               <button
                 type="button"
                 className="button"
-                disabled={busy || !form.password}
+                disabled={
+                  busy ||
+                  !form.password ||
+                  (selected.is_system_admin && selected.id !== actor.id)
+                }
                 onClick={() => submit("reset-password")}
               >
                 Reset password

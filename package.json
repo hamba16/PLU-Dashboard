@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "check:supabase": "node --env-file=.env.local scripts/check-supabase.mjs",
     "test:integration": "node --conditions=react-server --import tsx --test tests/security.integration.ts",
-    "seed:test": "node --env-file=.env.local scripts/seed-test-accounts.mjs"
+    "seed:test": "node --env-file=.env.local scripts/seed-test-accounts.mjs",
+    "seed:system-admin": "node --env-file=.env.local scripts/seed-system-admin.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.8",

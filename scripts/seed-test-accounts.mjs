@@ -45,7 +45,9 @@ try {
 }
 try {
   const existing = (
-    await db.query("select id,email,role,is_test from plu_private.users")
+    await db.query(
+      "select id,email,role,is_test from plu_private.users where not is_system_admin",
+    )
   ).rows;
   if (
     existing.some(
@@ -61,7 +63,13 @@ try {
     { perPage: 1000 },
   );
   if (listError) throw new Error("Cannot inventory Auth accounts.");
-  if (authUsers.users.some((u) => !entries.some((e) => e.email === u.email)))
+  if (
+    authUsers.users.some(
+      (u) =>
+        u.email !== "hambatariq84@gmail.com" &&
+        !entries.some((e) => e.email === u.email),
+    )
+  )
     throw new Error(
       "Unexpected Auth accounts exist; reconcile before seeding.",
     );

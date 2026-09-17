@@ -11,7 +11,7 @@ export async function GET() {
         requireRight(actor.role === "admin-full");
         return (
           await db.query(
-            "select id,email,name,role,division,active,otp_enabled,must_change_password,is_test,security_version from plu_private.users order by name,id",
+            "select id,email,name,role,division,active,otp_enabled,must_change_password,is_test,is_system_admin,security_version from plu_private.users order by name,id",
           )
         ).rows;
       }),
@@ -68,6 +68,25 @@ export async function POST(request: Request) {
           )
         ).rows[0];
         if (!target) throw new AppError("Account not found.", 404);
+        if (target.is_system_admin && target.id !== actor.id) {
+          await audit(
+            db,
+            actor.id,
+            "account.protection_blocked",
+            null,
+            target.id,
+            {
+              operation: body.action,
+              reason:
+                "Only the system administrator can manage the protected system account.",
+            },
+          );
+          return {
+            blocked: true as const,
+            message:
+              "This is the protected system administrator account. Only the system administrator can manage it.",
+          };
+        }
         if (body.version !== target.security_version)
           throw new AppError("Account changed. Reload before saving.", 409);
         if (body.action === "edit") {
@@ -155,6 +174,7 @@ export async function POST(request: Request) {
           );
         } else throw new AppError("Unknown action.");
         return {
+          blocked: false as const,
           id: target.id,
           email: target.email,
           actor: actor.id,
@@ -166,6 +186,7 @@ export async function POST(request: Request) {
       true,
       true,
     );
+    if (prepared.blocked) throw new AppError(prepared.message, 403);
     if (prepared.action === "create" || prepared.action === "reset-password") {
       const failed = await transaction(async (db) => {
         await db.query("select pg_advisory_xact_lock(4102026)");

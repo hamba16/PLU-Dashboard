@@ -39,6 +39,7 @@ export type Actor = {
   must_change_password: boolean;
   security_version: number;
   is_test: boolean;
+  is_system_admin: boolean;
   stage: string;
   session_hash: string;
   attempts: number;
@@ -83,5 +84,6 @@ export function publicActor(a: Actor) {
     role: a.role,
     division: a.division,
     is_test: a.is_test,
+    is_system_admin: a.is_system_admin,
   };
 }
