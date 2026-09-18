@@ -15,7 +15,7 @@ npm run dev
 
 Configure the keys listed in `.env.example` in ignored `.env.local`. `DATABASE_URL` uses the dedicated `plu_app` server login, not the public Supabase key. Remote database connections verify both Supabase's CA and hostname. The public CA is in `supabase/certs/`; it is not a credential. Keep `NIN_ENCRYPTION_KEY` in secure backup: losing it makes stored NINs unrecoverable. None of the service-role key, database password, NIN key, passwords or session tokens belong in public environment variables or source control.
 
-`APP_ORIGIN` must exactly match the browser origin. Set it to the final HTTPS origin when deploying. The application uses secure, HttpOnly, SameSite=Strict cookies in production. Use a Next.js server, not static hosting.
+`APP_ORIGIN` accepts a comma-separated list of exact browser origins and must include the final HTTPS origin when deploying (for example, `https://plu-dashboard.vercel.app`). On Vercel, the guard also recognizes the deployment and production project URLs from Vercel's `VERCEL_URL` and `VERCEL_PROJECT_PRODUCTION_URL` variables. The application uses secure, HttpOnly, SameSite=Strict cookies in production. Use a Next.js server, not static hosting.
 
 ## Access and routes
 

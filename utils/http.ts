@@ -34,8 +34,21 @@ export function failure(error: unknown) {
   );
 }
 export async function bodyOf(request: Request) {
-  const expected = process.env.APP_ORIGIN || new URL(request.url).origin;
-  if (request.headers.get("origin") !== expected)
+  const requestOrigin = new URL(request.url).origin;
+  const configuredOrigins = [
+    process.env.APP_ORIGIN,
+    process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL &&
+      `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`,
+  ]
+    .flatMap((value) => (value ? value.split(",") : []))
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => new URL(value).origin);
+  const expectedOrigins = configuredOrigins.length
+    ? configuredOrigins
+    : [requestOrigin];
+  if (!expectedOrigins.includes(request.headers.get("origin") ?? ""))
     throw new AppError("Request origin is not allowed.", 403);
   if (!request.headers.get("content-type")?.startsWith("application/json"))
     throw new AppError("JSON is required.", 415);
