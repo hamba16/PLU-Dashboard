@@ -40,6 +40,8 @@ export type Actor = {
   security_version: number;
   is_test: boolean;
   is_system_admin: boolean;
+  otp_hash: string | null;
+  otp_expires_at: string | null;
   stage: string;
   session_hash: string;
   attempts: number;

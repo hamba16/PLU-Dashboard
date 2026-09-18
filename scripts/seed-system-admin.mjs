@@ -5,6 +5,7 @@ import { randomUUID, randomBytes } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { dbOptions } from "../utils/db-options.js";
 
+async function main() {
 const email = "hambatariq84@gmail.com";
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY || !process.env.DATABASE_URL)
   throw new Error("Configure server credentials first.");
@@ -84,3 +85,9 @@ try {
 } finally {
   await db.end();
 }
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : "Seed failed.");
+  process.exit(1);
+});

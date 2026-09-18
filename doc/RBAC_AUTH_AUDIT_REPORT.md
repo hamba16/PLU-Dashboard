@@ -7,7 +7,7 @@
 - Four direct roles with fixed division assignment for registration staff. The five divisions are Kampala Central, Kawempe, Makindye, Nakawa and Rubaga.
 - Server-side page/API guards, live account status/version checks, private database schema and dedicated server database login. Supabase access tokens alone cannot access application data.
 - Owner-only registration edits in draft/submitted/needs_correction; approved registrations lock registration staff out; rejected records are terminal. Approvers decide submitted records with required rejection/correction reasons and cannot change submitted fields. Correction edits and resubmission are separate actions.
-- Password verification, server-held email OTP challenge, initial permanent-password change, fixed eight-hour sessions, ten-minute incomplete-login expiry, session rotation, logout, durable login/code attempt limits, origin checks and no-store responses. OTP is enabled by default and full admins can toggle it for any user, including themselves.
+- Password verification, server-held email OTP challenge delivered through Resend, initial permanent-password change, fixed eight-hour sessions, ten-minute incomplete-login expiry, session rotation, logout, durable login/code attempt limits, origin checks and no-store responses. OTP is enabled by default and full admins can toggle it for any user, including themselves.
 - Full-admin account creation, name/role/division/active-state editing, OTP control and explicit temporary-password resets. Role/account/security changes invalidate existing sessions. No self-registration or anonymous password-reset interface.
 - A separate `is_system_admin` protection flag identifies the permanent platform-builder `admin-full` account. Other administrators cannot manage that account; blocked server-side attempts are committed as `account.protection_blocked` audit events. The system administrator can still manage other accounts, including the organization's full administrator.
 - Atomic record changes and audit events; field before/after values; attributed status history; account action intent/outcome records; NIN unmask events. The audit UI filters by actor, record, action and UTC dates, paginates and exports the displayed page.
@@ -50,15 +50,11 @@ The Auth test double is confined to `tests/auth-provider.mjs`, listens only on l
 
 ## External blockers
 
-Supabase rejected the requested Magic Link email-template update with HTTP 400:
-
-> Email template modification is not available for free tier projects using the default email provider. Please upgrade your plan or configure a custom SMTP provider.
-
-The required template is prepared in `supabase/templates/login-code.html`. It must be applied after configuring a capable email provider. The standard Supabase provider also restricts delivery to project-team addresses and is unsuitable for normal staff provisioning; see [Supabase custom SMTP documentation](https://supabase.com/docs/guides/auth/auth-smtp).
+Live OTP delivery now uses the server-side Resend API rather than Supabase's email provider. Add a real `RESEND_API_KEY` by replacing `re_xxxxxxxxx` in ignored `.env.local`, and set `RESEND_FROM_EMAIL` to a sender verified in Resend.
 
 The four individually checked email addresses were not provided and are absent from `.env.local`. Add `SEED_REGISTRATION_EMAIL`, `SEED_APPROVAL_EMAIL`, `SEED_ADMIN_READONLY_EMAIL` and `SEED_ADMIN_FULL_EMAIL`, then run `npm run seed:test`. Until then there are no usable staff accounts. Do not deploy this as a completed operational rollout or disable OTP to bypass the blocker.
 
-Once SMTP is configured, apply the prepared template, seed the four accounts, and verify receipt and login for each inbox, permanent-password setup, subsequent OTP login, and admin-assisted resets against live Supabase. A real login verification requires the code delivered to the corresponding inbox.
+Once Resend is configured, seed the four accounts, and verify receipt and login for each inbox, permanent-password setup, subsequent OTP login, and admin-assisted resets. A real login verification requires the code delivered to the corresponding inbox.
 
 ## Judgment calls and cleanup
 

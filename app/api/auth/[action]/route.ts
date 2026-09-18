@@ -8,6 +8,8 @@ import {
 } from "@/utils/auth";
 import { pool, transaction, audit } from "@/utils/db";
 import { hash, token } from "@/utils/crypto";
+import { randomInt } from "node:crypto";
+import { sendLoginCode } from "@/utils/email";
 import { bodyOf, failure, json } from "@/utils/http";
 import { AppError } from "@/src/access";
 import { passwordValid } from "@/src/validation";
@@ -86,32 +88,37 @@ export async function POST(
           : user.must_change_password
             ? "password"
             : "complete";
-        if (stage === "otp") {
-          const { error } = await authClient().auth.signInWithOtp({
-            email: user.email,
-            options: { shouldCreateUser: false },
-          });
-          if (error)
-            throw new AppError(
-              "Unable to send your email code. Contact your administrator or try again later.",
-              503,
-            );
-        }
+        const code =
+          stage === "otp"
+            ? process.env.TEST_AUTH_PROVIDER === "1"
+              ? "123456"
+              : String(randomInt(100000, 1000000))
+            : null;
         // Starting another login invalidates earlier incomplete challenges for this account.
         await db.query(
           "delete from plu_private.sessions where user_id=$1 and stage<>'complete'",
           [user.id],
         );
         await db.query(
-          "insert into plu_private.sessions(token_hash,user_id,stage,security_version,expires_at) values($1,$2,$3,$4,now()+$5*interval '1 second')",
+          "insert into plu_private.sessions(token_hash,user_id,stage,security_version,expires_at,otp_hash,otp_expires_at) values($1,$2,$3,$4,now()+$5*interval '1 second',$6,case when $6 is null then null else now()+interval '10 minutes' end)",
           [
             hash(raw),
             user.id,
             stage,
             user.security_version,
             stage === "complete" ? 28800 : 600,
+            code ? hash(code) : null,
           ],
         );
+        if (code)
+          try {
+            await sendLoginCode(user.email, code);
+          } catch {
+            throw new AppError(
+              "Unable to send your email code. Contact your administrator or try again later.",
+              503,
+            );
+          }
         await audit(db, user.id, "auth.password_verified", null, user.id, {
           next: stage,
         });
@@ -131,19 +138,17 @@ export async function POST(
           throw new AppError("No pending email verification.", 401);
         if (typeof body.code !== "string" || !/^\d{6,10}$/.test(body.code))
           throw new AppError("Enter the code from your email.");
-        const auth = authClient();
-        const { data, error } = await auth.auth.verifyOtp({
-          email: actor.email,
-          token: body.code,
-          type: "email",
-        });
-        if (error || data.user?.id !== actor.id)
+        if (
+          !actor.otp_hash ||
+          !actor.otp_expires_at ||
+          new Date(actor.otp_expires_at).getTime() <= Date.now() ||
+          hash(body.code) !== actor.otp_hash
+        )
           throw new AppError("The code is incorrect or expired.", 401);
-        await auth.auth.signOut({ scope: "local" });
         const stage = actor.must_change_password ? "password" : "complete";
         const replacement = token();
         await db.query(
-          "update plu_private.sessions set token_hash=$2,stage=$3,expires_at=now()+$4*interval '1 second' where token_hash=$1",
+          "update plu_private.sessions set token_hash=$2,stage=$3,expires_at=now()+$4*interval '1 second',otp_hash=null,otp_expires_at=null where token_hash=$1",
           [
             actor.session_hash,
             hash(replacement),

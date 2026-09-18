@@ -4,7 +4,7 @@ Next.js workspace for Kampala Central, Kawempe, Makindye, Nakawa and Rubaga. Acc
 
 ## Current readiness
 
-The access-control implementation and database migration are in place. The linked Supabase project has public signup disabled and a private application schema. **Live email OTP and the four review accounts are not ready yet:** custom SMTP (or an eligible provider configuration) and four individually checked email addresses are still required. See [implementation and verification report](doc/RBAC_AUTH_AUDIT_REPORT.md).
+The access-control implementation and database migration are in place. The linked Supabase project has public signup disabled and a private application schema. **Live email OTP and the four review accounts are not ready yet:** a Resend API key, a verified sender address and four individually checked email addresses are still required. See [implementation and verification report](doc/RBAC_AUTH_AUDIT_REPORT.md).
 
 ## Local application
 
@@ -34,7 +34,7 @@ All reads and mutations enforce access on the server. Registration accounts can 
 
 The current project migration is applied and recorded. On a fresh project, apply `supabase/migrations/` through the Supabase CLI. The migration creates a non-login `plu_app` role; a database administrator must set its login password separately and configure `DATABASE_URL`. Do not put this password into migration SQL.
 
-Auth must have public signup and anonymous sign-in disabled. Email OTP expires after 600 seconds. Configure custom SMTP in Supabase Auth; the default provider cannot currently accept the required code template on this project's free plan. Set the Magic Link email template to the contents of `supabase/templates/login-code.html` (including `{{ .Token }}`). Do not turn off OTP to work around missing email delivery.
+Auth must have public signup and anonymous sign-in disabled. Email OTP expires after 600 seconds. OTP delivery uses the server-side Resend API. Add `RESEND_API_KEY` and `RESEND_FROM_EMAIL` to ignored `.env.local`; replace `re_xxxxxxxxx` with your real Resend API key and use a sender address verified in Resend. Never expose the key as a `NEXT_PUBLIC_*` variable. Do not turn off OTP to work around missing email delivery.
 
 The app intentionally does not accept Supabase access tokens as application sessions. Password verification starts a server-held challenge. OTP verification completes that challenge before data access; first login additionally requires a permanent password. This prevents password-only and email-only Supabase sessions from bypassing the app's two-step login. OTP is on by default; full administrators may toggle it for any account, including their own.
 
@@ -79,6 +79,6 @@ Stop the test app/provider and discard its isolated database after testing. Neve
 - `app/`: guarded pages, Auth/records/accounts/audit APIs.
 - `src/`: UI, shared role checks and validated form contracts; no runtime fixtures.
 - `utils/`: server database access, session guards, NIN encryption and record transactions.
-- `supabase/`: migration, Auth settings, email template and public CA.
+- `supabase/`: migrations, Auth settings and public CA.
 - `tests/`, `e2e/`: clearly isolated test fixtures and checks.
 - `extra/`: archived design exports and earlier prototypes, outside the served application.
