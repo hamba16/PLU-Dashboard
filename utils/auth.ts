@@ -53,7 +53,7 @@ export async function actorIn(
 ): Promise<Actor> {
   // Live profile checks revoke access immediately after any account-security change.
   const { rows } = await db.query(
-    `select u.*, s.stage, s.token_hash session_hash, s.attempts from plu_private.users u
+    `select u.*, s.stage, s.token_hash session_hash, s.attempts, s.otp_hash, s.otp_expires_at from plu_private.users u
     join plu_private.sessions s on s.user_id=u.id and s.security_version=u.security_version
     where s.token_hash=$1 and s.expires_at>now() and u.active for update of s, u`,
     [hash(rawToken)],
