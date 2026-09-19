@@ -100,7 +100,7 @@ export async function POST(
           [user.id],
         );
         await db.query(
-          "insert into plu_private.sessions(token_hash,user_id,stage,security_version,expires_at,otp_hash,otp_expires_at) values($1,$2,$3,$4,now()+$5*interval '1 second',$6,case when $6 is null then null else now()+interval '10 minutes' end)",
+          "insert into plu_private.sessions(token_hash,user_id,stage,security_version,expires_at,otp_hash,otp_expires_at) values($1,$2,$3,$4,now()+$5*interval '1 second',$6::text,case when $6::text is null then null else now()+interval '10 minutes' end)",
           [
             hash(raw),
             user.id,
